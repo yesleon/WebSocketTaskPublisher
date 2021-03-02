@@ -1,4 +1,4 @@
-# WebSocketPublisher
+# WebSocketTaskPublisher
 
 This module let you use Combine for WebSocket tasks.
 
