@@ -8,80 +8,192 @@
 import Combine
 import Foundation
 
-extension URLSession {
-    
-    public func webSocketTaskPublisher(
-        for url: URL,
-        taskConfigurationHandler: @escaping (WebSocketTask) -> Void
-    ) -> WebSocketTaskPublisher {
-        
-        return WebSocketTaskPublisher(session: self, request: .init(url: url), taskConfigurationHandler: taskConfigurationHandler)
+import Darwin
+
+@available(macOS 10.12, iOS 10.0, tvOS 10.0, watchOS 3.0, *)
+extension UnsafeMutablePointer where Pointee == os_unfair_lock_s {
+    internal init() {
+        let l = UnsafeMutablePointer.allocate(capacity: 1)
+        l.initialize(to: os_unfair_lock())
+        self = l
     }
     
+    internal func cleanupLock() {
+        deinitialize(count: 1)
+        deallocate()
+    }
+    
+    internal func lock() {
+        os_unfair_lock_lock(self)
+    }
+    
+    internal func tryLock() -> Bool {
+        let result = os_unfair_lock_trylock(self)
+        return result
+    }
+    
+    internal func unlock() {
+        os_unfair_lock_unlock(self)
+    }
+}
+
+@available(macOS 10.12, iOS 10.0, tvOS 10.0, watchOS 3.0, *)
+typealias Lock = os_unfair_lock_t
+
+extension URLSession {
+    
+    
+    /// Returns a publisher that wraps a URL session WebSocket task for a given URL.
+    ///
+    /// The publisher publishes data when the task receives messages, or terminates if the task closes or fails with an error.
+    /// - Parameter url: The URL for which to create a WebSocket task.
+    /// - Parameter taskConfigurationHandler: The URL request for which to create a data task.
+    /// - Parameter task: The created WebSocket task, presented as a protocol.
+    /// - Returns: A publisher that wraps a WebSocket task for the URL request.
     public func webSocketTaskPublisher(
-        for request: URLRequest, taskConfigurationHandler: @escaping (WebSocketTask) -> Void) -> WebSocketTaskPublisher {
+        for url: URL,
+        taskConfigurationHandler: @escaping (_ task: WebSocketTask) -> Void
+    ) -> WebSocketTaskPublisher {
         
-        .init(session: self, request: request, taskConfigurationHandler: taskConfigurationHandler)
+        let request = URLRequest(url: url)
+        return WebSocketTaskPublisher(request: request, session: self, taskConfigurationHandler: taskConfigurationHandler)
+    }
+    
+    /// Returns a publisher that wraps a URL session WebSocket task for a given URL request.
+    ///
+    /// The publisher publishes data when the task receives messages, or terminates if the task closes or fails with an error.
+    /// - Parameter request: The URL request for which to create a WebSocket task.
+    /// - Parameter taskConfigurationHandler: The URL request for which to create a data task.
+    /// - Parameter task: The created WebSocket task, presented as a protocol.
+    /// - Returns: A publisher that wraps a WebSocket task for the URL request.
+    public func webSocketTaskPublisher(
+        for request: URLRequest,
+        taskConfigurationHandler: @escaping (_ task: WebSocketTask) -> Void
+    ) -> WebSocketTaskPublisher {
+        
+        return WebSocketTaskPublisher(request: request, session: self, taskConfigurationHandler: taskConfigurationHandler)
     }
     
     public struct WebSocketTaskPublisher: Publisher {
         public typealias Output = URLSessionWebSocketTask.Message
         public typealias Failure = Error
         
-        private class Subscription<S: Subscriber>: Combine.Subscription where S.Failure == Error, S.Input == URLSessionWebSocketTask.Message {
-            
-            var task: URLSessionWebSocketTask?
-            let subscriber: S
-            
-            init(task: URLSessionWebSocketTask, subscriber: S) {
-                self.task = task
-                self.subscriber = subscriber
-            }
-            
-            func request(_ demand: Subscribers.Demand) {
-                
-                if let limit = demand.max {
-                    guard limit > 0 else { return }
-                }
-                task?.receive { [weak self] result in
-                    guard let self = self else { return }
-                    switch result {
-                    case .success(let message):
-                        let additionalDemand = self.subscriber.receive(message)
-                        if let demand = demand.max, let additionalDemand = additionalDemand.max {
-                            self.request(.max(demand + additionalDemand))
-                        } else {
-                            self.request(.unlimited)
-                        }
-                    case .failure(let error):
-                        self.subscriber.receive(completion: .failure(error))
-                        self.cancel()
-                    }
-                }
-            }
-            
-            func cancel() {
-                task?.cancel(with: .normalClosure, reason: nil)
-                task = nil
-            }
-        }
         
-        let session: URLSession
-        let request: URLRequest
-        let taskConfigurationHandler: (WebSocketTask) -> Void
+        public let request: URLRequest
+        public let session: URLSession
+        public let taskConfigurationHandler: (WebSocketTask) -> Void
         
-        init(session: URLSession, request: URLRequest, taskConfigurationHandler: @escaping (WebSocketTask) -> Void) {
-            self.session = session
+        public init(
+            request: URLRequest,
+            session: URLSession,
+            taskConfigurationHandler: @escaping (WebSocketTask) -> Void
+        ) {
             self.request = request
+            self.session = session
             self.taskConfigurationHandler = taskConfigurationHandler
         }
         
-        public func receive<S>(subscriber: S) where S : Subscriber, Self.Failure == S.Failure, Self.Output == S.Input {
-            let task = session.webSocketTask(with: request)
-            task.resume()
-            taskConfigurationHandler(task)
-            let subscription = Subscription(task: task, subscriber: subscriber)
-            subscriber.receive(subscription: subscription)
+        public func receive<S: Subscriber>(subscriber: S) where Failure == S.Failure, Output == S.Input {
+            subscriber.receive(subscription: Inner(self, subscriber, taskConfigurationHandler))
+        }
+        
+        private typealias Parent = WebSocketTaskPublisher
+        private final class Inner<Downstream: Subscriber>: Subscription where
+            Downstream.Input == Parent.Output,
+            Downstream.Failure == Parent.Failure {
+            typealias Input = Downstream.Input
+            typealias Failure = Downstream.Failure
+            
+            private let lock: Lock
+            private var parent: Parent?             // GuardedBy(lock)
+            private var downstream: Downstream?     // GuardedBy(lock)
+            private var demand: Subscribers.Demand  // GuardedBy(lock)
+            private var task: URLSessionWebSocketTask!   // GuardedBy(lock)
+            private let taskConfigurationHandler: (WebSocketTask) -> Void
+            
+            init(_ parent: Parent, _ downstream: Downstream, _ taskConfigurationHandler: @escaping (WebSocketTask) -> Void) {
+                self.lock = Lock()
+                self.parent = parent
+                self.downstream = downstream
+                self.demand = .max(0)
+                self.taskConfigurationHandler = taskConfigurationHandler
+            }
+            
+            deinit {
+                lock.cleanupLock()
+            }
+            
+            // MARK: - Upward Signals
+            func request(_ d: Subscribers.Demand) {
+                precondition(d > 0, "Invalid request of zero demand")
+                
+                lock.lock()
+                guard let p = parent else {
+                    // We've already been cancelled so bail
+                    lock.unlock()
+                    return
+                }
+                
+                // Avoid issues around `self` before init by setting up only once here
+                if self.task == nil {
+                    let task = p.session.webSocketTask(
+                        with: p.request
+                    )
+                    self.task = task
+                }
+                
+                self.demand += d
+                let task = self.task!
+                lock.unlock()
+                
+                task.resume()
+                task.receive(completionHandler: handleReceivedMessage(result:))
+                taskConfigurationHandler(task)
+            }
+            
+            private func handleReceivedMessage(result: Result<Output, Failure>) {
+                lock.lock()
+                guard demand > 0,
+                      parent != nil,
+                      let ds = downstream
+                else {
+                    lock.unlock()
+                    return
+                }
+                
+                demand -= 1
+                lock.unlock()
+                
+                switch result {
+                case .success(let message):
+                    let more = ds.receive(message)
+                    
+                    lock.lock()
+                    demand += more
+                    lock.unlock()
+                    
+                    task.receive(completionHandler: handleReceivedMessage(result:))
+                    
+                case .failure(let error):
+                    ds.receive(completion: .failure(error))
+                }
+                
+            }
+            
+            func cancel() {
+                lock.lock()
+                guard parent != nil else {
+                    lock.unlock()
+                    return
+                }
+                parent = nil
+                downstream = nil
+                demand = .max(0)
+                let task = self.task
+                self.task = nil
+                lock.unlock()
+                task?.cancel()
+            }
         }
     }
 }
