@@ -54,6 +54,12 @@ public struct WebSocketTaskPublisher: Publisher {
     let request: URLRequest
     let taskConfigurationHandler: (WebSocketTask) -> Void
     
+    init(session: URLSession, request: URLRequest, taskConfigurationHandler: @escaping (WebSocketTask) -> Void) {
+        self.session = session
+        self.request = request
+        self.taskConfigurationHandler = taskConfigurationHandler
+    }
+    
     public func receive<S>(subscriber: S) where S : Subscriber, Self.Failure == S.Failure, Self.Output == S.Input {
         let task = session.webSocketTask(with: request)
         task.resume()
