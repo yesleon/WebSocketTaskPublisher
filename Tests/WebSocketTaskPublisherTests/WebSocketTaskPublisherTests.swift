@@ -1,7 +1,7 @@
 import XCTest
-@testable import WebSocketPublisher
+@testable import WebSocketTaskPublisher
 
-final class WebSocketPublisherTests: XCTestCase {
+final class WebSocketTaskPublisherTests: XCTestCase {
     func testExample() {
         // This is an example of a functional test case.
         // Use XCTAssert and related functions to verify your tests produce the correct
