@@ -15,11 +15,11 @@ public protocol WebSocketTask {
 
 extension WebSocketTask {
     
-    func send(_ message: URLSessionWebSocketTask.Message) {
+    public func send(_ message: URLSessionWebSocketTask.Message) {
         send(message) { }
     }
     
-    func ping() {
+    public func ping() {
         ping { }
     }
 }
