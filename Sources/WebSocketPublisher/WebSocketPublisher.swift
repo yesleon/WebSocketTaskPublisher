@@ -71,8 +71,13 @@ public struct WebSocketTaskPublisher: Publisher {
 
 extension URLSession {
     
-    public func webSocketTaskPublisher(url: URL, taskConfigurationHandler: @escaping (WebSocketTask) -> Void) -> WebSocketTaskPublisher {
-        let request = URLRequest(url: url)
-        return .init(session: self, request: request, taskConfigurationHandler: taskConfigurationHandler)
+    public func webSocketTaskPublisher(with request: URLRequest, taskConfigurationHandler: @escaping (WebSocketTask) -> Void) -> WebSocketTaskPublisher {
+        
+        .init(session: self, request: request, taskConfigurationHandler: taskConfigurationHandler)
+    }
+    
+    public func webSocketTaskPublisher(with url: URL, taskConfigurationHandler: @escaping (WebSocketTask) -> Void) -> WebSocketTaskPublisher {
+        
+        .init(session: self, request: .init(url: url), taskConfigurationHandler: taskConfigurationHandler)
     }
 }
