@@ -6,7 +6,7 @@ final class WebSocketPublisherTests: XCTestCase {
         // This is an example of a functional test case.
         // Use XCTAssert and related functions to verify your tests produce the correct
         // results.
-        XCTAssertEqual(WebSocketPublisher().text, "Hello, World!")
+//        XCTAssertEqual(WebSocketPublisher().text, "Hello, World!")
     }
 
     static var allTests = [
