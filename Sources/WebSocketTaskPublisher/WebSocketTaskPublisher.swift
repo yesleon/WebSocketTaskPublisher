@@ -47,7 +47,7 @@ extension URLSession {
     /// - Parameters:
     ///     - url: The URL for which to create a WebSocket task.
     ///     - taskConfigurationHandler: The URL request for which to create a data task.
-    ///     - task: The created WebSocket task, presented as a protocol.
+    /// - Parameter task: The created WebSocket task, presented as a protocol.
     /// - Returns: A publisher that wraps a WebSocket task for the URL request.
     public func webSocketTaskPublisher(
         for url: URL,
