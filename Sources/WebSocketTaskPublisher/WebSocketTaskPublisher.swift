@@ -10,7 +10,6 @@ import Foundation
 
 import Darwin
 
-@available(macOS 10.12, iOS 10.0, tvOS 10.0, watchOS 3.0, *)
 extension UnsafeMutablePointer where Pointee == os_unfair_lock_s {
     internal init() {
         let l = UnsafeMutablePointer.allocate(capacity: 1)
@@ -37,7 +36,6 @@ extension UnsafeMutablePointer where Pointee == os_unfair_lock_s {
     }
 }
 
-@available(macOS 10.12, iOS 10.0, tvOS 10.0, watchOS 3.0, *)
 typealias Lock = os_unfair_lock_t
 
 extension URLSession {
@@ -46,9 +44,10 @@ extension URLSession {
     /// Returns a publisher that wraps a URL session WebSocket task for a given URL.
     ///
     /// The publisher publishes data when the task receives messages, or terminates if the task closes or fails with an error.
-    /// - Parameter url: The URL for which to create a WebSocket task.
-    /// - Parameter taskConfigurationHandler: The URL request for which to create a data task.
-    /// - Parameter task: The created WebSocket task, presented as a protocol.
+    /// - Parameters:
+    ///     - url: The URL for which to create a WebSocket task.
+    ///     - taskConfigurationHandler: The URL request for which to create a data task.
+    ///     - task: The created WebSocket task, presented as a protocol.
     /// - Returns: A publisher that wraps a WebSocket task for the URL request.
     public func webSocketTaskPublisher(
         for url: URL,
@@ -62,9 +61,10 @@ extension URLSession {
     /// Returns a publisher that wraps a URL session WebSocket task for a given URL request.
     ///
     /// The publisher publishes data when the task receives messages, or terminates if the task closes or fails with an error.
-    /// - Parameter request: The URL request for which to create a WebSocket task.
-    /// - Parameter taskConfigurationHandler: The URL request for which to create a data task.
-    /// - Parameter task: The created WebSocket task, presented as a protocol.
+    /// - Parameters:
+    ///     - request: The URL request for which to create a WebSocket task.
+    ///     - taskConfigurationHandler: The URL request for which to create a data task.
+    ///     - task: The created WebSocket task, presented as a protocol.
     /// - Returns: A publisher that wraps a WebSocket task for the URL request.
     public func webSocketTaskPublisher(
         for request: URLRequest,
