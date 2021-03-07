@@ -155,6 +155,7 @@ extension URLSession {
                 lock.lock()
                 guard demand > 0,
                       parent != nil,
+                      task != nil,
                       let ds = downstream
                 else {
                     lock.unlock()
