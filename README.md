@@ -6,9 +6,9 @@ This module let you use Combine for WebSocket tasks.
 
 ```swift
 let url = URL(string: "wss://example.com")!
-let request = URLRequest(url: url)
+
 self.subscription = URLSession.shared
-    .webSocketTaskPublisher(with: request, taskConfigurationHandler: { task in
+    .webSocketTaskPublisher(for: url, taskConfigurationHandler: { task in
     
         // Optionally use or retain the generated task here.
         task.send(.string("Something something"))
