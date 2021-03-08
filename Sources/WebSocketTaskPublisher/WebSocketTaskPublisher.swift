@@ -193,7 +193,7 @@ extension URLSession {
                 let task = self.task
                 self.task = nil
                 lock.unlock()
-                task?.cancel()
+                task?.cancel(with: .normalClosure, reason: nil)
             }
         }
     }
